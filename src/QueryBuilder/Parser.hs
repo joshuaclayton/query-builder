@@ -2,7 +2,6 @@ module QueryBuilder.Parser
     ( parseConstraints
     ) where
 
-import           Data.Text (Text)
 import qualified Data.Text as T
 import           QueryBuilder.Parser.Internal (parens, quotes, int, double, parseOnly)
 import           QueryBuilder.Types
@@ -21,13 +20,14 @@ constraintsParser = do
         Nothing -> return n
         Just op -> buildConstraints op <$> sequence [return n, constraintsParser]
   where
-    singleConstraintParser = Single <$> constraintParser
+    allOperations = [(":", Equals), (">", GreaterThan), (">=", GreaterThanOrEqual), ("<", LessThan), ("<=", LessThanOrEqual)]
+    singleConstraintParser = Single <$> choice (map (try . uncurry buildConstraint) allOperations)
 
-constraintParser :: Parser Constraint
-constraintParser = Constraint
-    <$> constraintNameParser
+buildConstraint :: String -> ComparisonOperator -> Parser Constraint
+buildConstraint operatorString operator = Constraint
+    <$> constraintNameParser operatorString
     <*> constraintValuesParser
-    <*> pure Equals
+    <*> pure operator
 
 operatorParser :: Parser (Constraints -> Constraints -> Constraints)
 operatorParser = try andOperator <|> orOperator
@@ -37,8 +37,8 @@ operatorParser = try andOperator <|> orOperator
     op :: String -> Parser String
     op w = space *> string w <* space
 
-constraintNameParser :: Parser Text
-constraintNameParser = T.pack <$> someTill (alphaNumChar <|> char '.') (char ':')
+constraintNameParser :: String -> Parser String
+constraintNameParser split = someTill (alphaNumChar <|> char '.') (string split)
 
 constraintValuesParser :: Parser [Value]
 constraintValuesParser = try parseLiteralValue <|> parseValues
