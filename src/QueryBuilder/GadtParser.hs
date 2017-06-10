@@ -56,16 +56,12 @@ quotedStringParser = quotes remainingText
     notQuote = noneOf ("\"" :: String)
 
 explodeValueToContainer :: [Value] -> ExprContainer
-explodeValueToContainer xs = ExprContainer mintval mdoubleval mstringval Nothing Nothing Nothing
+explodeValueToContainer xs =
+    foldl1 mappend $ M.catMaybes $ concat [map toS xs, map toI xs, map toD xs]
   where
-    safeHead [] = Nothing
-    safeHead xs' = Just $ head xs'
-    mstringval = safeHead $ M.mapMaybe toS xs
-    mintval = safeHead $ M.mapMaybe toI xs
-    mdoubleval = safeHead $ M.mapMaybe toD xs
-    toS (VString v) = Just $ S v
+    toS (VString v) = Just $ stringExpr v
     toS _ = Nothing
-    toI (VInt v) = Just $ I v
+    toI (VInt v) = Just $ intExpr v
     toI _ = Nothing
-    toD (VDouble v) = Just $ D v
+    toD (VDouble v) = Just $ doubleExpr v
     toD _ = Nothing
