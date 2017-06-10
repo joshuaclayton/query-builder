@@ -1,9 +1,11 @@
 module QueryBuilder.Demo where
 
+import QueryBuilder.GadtTypes
 import QueryBuilder.Types
 
-newtype PersonId = PersonId Int deriving (Eq, Show)
-newtype HobbyId = HobbyId Int deriving (Eq, Show)
+newtype PersonId = PersonId { fromPersonId :: Int } deriving (Eq, Show)
+newtype HobbyId = HobbyId { fromHobbyId :: Int } deriving (Eq, Show)
+
 data Hobby = Hobby
     { hId :: HobbyId
     , hName :: String
@@ -41,3 +43,10 @@ comparisonLookup "id" p = Just $ SingleValue $ toValue (pId p)
 comparisonLookup "hobby.id" p = Just $ MultipleValues $ map (toValue . hId) (pHobbies p)
 comparisonLookup "hobby.name" p = Just $ MultipleValues $ map (toValue . hName) (pHobbies p)
 comparisonLookup _ _ = Nothing
+
+comparisonLookup' :: String -> Person -> Maybe ExprContainer
+comparisonLookup' "name" p = Just $ stringExpr (pName p)
+comparisonLookup' "id" p = Just $ intExpr (fromPersonId $ pId p)
+comparisonLookup' "hobby.id" p = Just $ intExprs $ map (fromHobbyId . hId) (pHobbies p)
+comparisonLookup' "hobby.name" p = Just $ stringExprs $ map hName (pHobbies p)
+comparisonLookup' _ _ = Nothing

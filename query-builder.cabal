@@ -20,6 +20,8 @@ library
                      , QueryBuilder.Parser
                      , QueryBuilder.Types
                      , QueryBuilder.Demo
+                     , QueryBuilder.GadtTypes
+                     , QueryBuilder.GadtParser
   build-depends:       base >= 4.7 && < 5
                      , megaparsec >= 5 && < 6
                      , text
