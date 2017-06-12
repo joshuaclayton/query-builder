@@ -2,7 +2,6 @@
 
 module QueryBuilder.GadtTypes where
 
-import Control.Applicative ((<|>))
 import Data.List (intersect, union)
 
 data GadtConstraints
@@ -14,9 +13,44 @@ data GadtConstraints
 
 data GadtConstraint = GadtConstraint
     { gcName :: String
-    , gcContainer :: ExprContainer
+    , gcContainer :: ExpressionContainer
     , gcComparison :: ComparisonOperator
     } deriving (Show)
+
+data ExpressionContainer = ExpressionContainer
+    { ecInt :: Expressions Int
+    , ecDouble :: Expressions Double
+    , ecString :: Expressions String
+    , ecBool :: Expressions Bool
+    } deriving Show
+
+instance Monoid ExpressionContainer where
+    mempty = ExpressionContainer NoExpression NoExpression NoExpression NoExpression
+    (ExpressionContainer i d s b) `mappend` (ExpressionContainer i' d' s' b') =
+        ExpressionContainer (i `mappend` i') (d `mappend` d') (s `mappend` s') (b `mappend` b')
+
+data Expressions a
+    = NoExpression
+    | SingleExpression (Expr a)
+    | MultipleExpressions [Expr a]
+    deriving Show
+
+instance Monoid (Expressions a) where
+    mempty = NoExpression
+    a `mappend` NoExpression = a
+    NoExpression `mappend` a = a
+    (SingleExpression a) `mappend` (SingleExpression a') = MultipleExpressions [a, a']
+    (MultipleExpressions as) `mappend` (SingleExpression a) = MultipleExpressions $ as ++ pure a
+    (SingleExpression a) `mappend` (MultipleExpressions as) = MultipleExpressions $ pure a ++ as
+    (MultipleExpressions as) `mappend` (MultipleExpressions as') = MultipleExpressions $ as ++ as'
+
+data ComparisonOperator
+    = Equals
+    | GreaterThan
+    | GreaterThanOrEqual
+    | LessThan
+    | LessThanOrEqual
+    deriving Show
 
 data Expr a where
     I :: Int -> Expr Int
@@ -30,88 +64,6 @@ data Expr a where
     Gt :: Ord a => Expr a -> Expr a -> Expr Bool
     Gte :: Ord a => Expr a -> Expr a -> Expr Bool
 
-data ExprContainer = ExprContainer
-    { ecI :: Maybe (Expr Int)
-    , ecD :: Maybe (Expr Double)
-    , ecS :: Maybe (Expr String)
-    , ecIs :: Maybe [Expr Int]
-    , ecDs :: Maybe [Expr Double]
-    , ecSs :: Maybe [Expr String]
-    } deriving Show
-
-instance Monoid ExprContainer where
-    mempty = ExprContainer Nothing Nothing Nothing Nothing Nothing Nothing
-    (ExprContainer a b c d e f) `mappend` (ExprContainer a' b' c' d' e' f') =
-        ExprContainer a'' b'' c'' d'' e'' f''
-      where
-        a'' = a' <|> a
-        b'' = b' <|> b
-        c'' = c' <|> c
-        d'' = d' <|> d
-        e'' = e' <|> e
-        f'' = f' <|> f
-
-stringExpr :: String -> ExprContainer
-stringExpr s = ExprContainer Nothing Nothing (Just $ S s) Nothing Nothing Nothing
-
-stringExprs :: [String] -> ExprContainer
-stringExprs ss = ExprContainer Nothing Nothing Nothing Nothing Nothing (Just $ map S ss)
-
-intExpr :: Int -> ExprContainer
-intExpr i = ExprContainer (Just $ I i) Nothing Nothing Nothing Nothing Nothing
-
-intExprs :: [Int] -> ExprContainer
-intExprs is = ExprContainer Nothing Nothing Nothing (Just $ map I is) Nothing Nothing
-
-doubleExpr :: Double -> ExprContainer
-doubleExpr d = ExprContainer Nothing (Just $ D d) Nothing Nothing Nothing Nothing
-
-doubleExprs :: [Double] -> ExprContainer
-doubleExprs ds = ExprContainer Nothing Nothing Nothing Nothing (Just $ map D ds) Nothing
-
-data ComparisonOperator
-    = Equals
-    | GreaterThan
-    | GreaterThanOrEqual
-    | LessThan
-    | LessThanOrEqual
-    deriving Show
-
-applyConstraints :: Eq a => (String -> a -> Maybe ExprContainer) -> GadtConstraints -> [a] -> [a]
-applyConstraints _ NoGadtConstraints xs = xs
-applyConstraints f (Single constraint) xs = filter (handleConstraint constraint f) xs
-applyConstraints f (And lconstraints rconstraints) xs =
-    applyConstraints f lconstraints xs `intersect` applyConstraints f rconstraints xs
-applyConstraints f (Or lconstraints rconstraints) xs =
-    applyConstraints f lconstraints xs `union` applyConstraints f rconstraints xs
-
-handleConstraint :: GadtConstraint -> (String -> a -> Maybe ExprContainer) -> (a -> Bool)
-handleConstraint constraint f = go
-  where
-    xToValue = f $ gcName constraint
-    exprContainer = gcContainer constraint
-    op = gcComparison constraint
-    go x =
-        case xToValue x of
-            Nothing -> False
-            Just exprContainer' ->
-                evalExpr $ comparableExpr' exprContainer exprContainer' op
-
-buildConstraints :: (GadtConstraints -> GadtConstraints -> GadtConstraints) -> [GadtConstraints] -> GadtConstraints
-buildConstraints _ [] = NoGadtConstraints
-buildConstraints _ [a] = a
-buildConstraints f [a, b] = f a b
-buildConstraints f (a:b:xs) = buildConstraints f $ f a b : xs
-
-test1, test2, test3, test4, test5, test6, test7 :: ExprContainer
-test1 = mempty `mappend` intExpr 1
-test2 = mempty `mappend` intExpr 1
-test3 = mempty `mappend` intExpr 3
-test4 = mempty `mappend` stringExpr "foo"
-test5 = mempty `mappend` stringExpr "bar"
-test6 = mempty `mappend` stringExpr "foo"
-test7 = mempty `mappend` doubleExpr 1.2
-
 instance Show (Expr a) where
     show (I v) = show v
     show (D v) = show v
@@ -123,6 +75,52 @@ instance Show (Expr a) where
     show (Lte v v') = show v ++ " <= " ++ show v'
     show (Gt v v') = show v ++ " > " ++ show v'
     show (Gte v v') = show v ++ " >= " ++ show v'
+
+stringExpr :: String -> ExpressionContainer
+stringExpr x = mempty { ecString = SingleExpression $ S x }
+
+stringExprs :: [String] -> ExpressionContainer
+stringExprs xs = mempty { ecString = MultipleExpressions $ map S xs }
+
+intExpr :: Int -> ExpressionContainer
+intExpr x = mempty { ecInt = SingleExpression $ I x }
+
+intExprs :: [Int] -> ExpressionContainer
+intExprs xs = mempty { ecInt = MultipleExpressions $ map I xs }
+
+doubleExpr :: Double -> ExpressionContainer
+doubleExpr x = mempty { ecDouble = SingleExpression $ D x }
+
+doubleExprs :: [Double] -> ExpressionContainer
+doubleExprs xs = mempty { ecDouble = MultipleExpressions $ map D xs }
+
+boolExpr :: Bool -> ExpressionContainer
+boolExpr x = mempty { ecBool = SingleExpression $ B x }
+
+boolExprs :: [Bool] -> ExpressionContainer
+boolExprs xs = mempty { ecBool = MultipleExpressions $ map B xs }
+
+applyConstraints :: Eq a => (String -> a -> Maybe ExpressionContainer) -> GadtConstraints -> [a] -> [a]
+applyConstraints _ NoGadtConstraints xs = xs
+applyConstraints f (Single constraint) xs = filter (handleConstraint constraint f) xs
+applyConstraints f (And lconstraints rconstraints) xs =
+    applyConstraints f lconstraints xs `intersect` applyConstraints f rconstraints xs
+applyConstraints f (Or lconstraints rconstraints) xs =
+    applyConstraints f lconstraints xs `union` applyConstraints f rconstraints xs
+
+handleConstraint :: GadtConstraint -> (String -> a -> Maybe ExpressionContainer) -> (a -> Bool)
+handleConstraint constraint f = maybe False processContainer . xToValue
+  where
+    xToValue = f $ gcName constraint
+    exprContainer = gcContainer constraint
+    op = gcComparison constraint
+    processContainer = evalExpr . compareExpressions op exprContainer
+
+buildConstraints :: (GadtConstraints -> GadtConstraints -> GadtConstraints) -> [GadtConstraints] -> GadtConstraints
+buildConstraints _ [] = NoGadtConstraints
+buildConstraints _ [a] = a
+buildConstraints f [a, b] = f a b
+buildConstraints f (a:b:xs) = buildConstraints f $ f a b : xs
 
 evalExpr :: Expr a -> a
 evalExpr (I i) = i
@@ -136,24 +134,11 @@ evalExpr (Lte e2 e1) = evalExpr e1 <= evalExpr e2
 evalExpr (Gt e2 e1) = evalExpr e1 > evalExpr e2
 evalExpr (Gte e2 e1) = evalExpr e1 >= evalExpr e2
 
-comparableExpr' :: ExprContainer -> ExprContainer -> ComparisonOperator -> Expr Bool
-comparableExpr' ec1 ec2 op = foldl1 Orr [singleValues, listValues, listValues']
+compareExpressions :: ComparisonOperator -> ExpressionContainer -> ExpressionContainer -> Expr Bool
+compareExpressions op ec1 ec2 = foldl1 Orr [go ecDouble, go ecInt, go ecString, go ecBool]
   where
-    listValues = case (combineMaybes (ecDs ec1) (ecD ec2), combineMaybes (ecIs ec1) (ecI ec2), combineMaybes (ecSs ec1) (ecS ec2)) of
-        ( Just (v, v'), _, _ ) -> handleList op v v'
-        ( _, Just (v, v'), _ ) -> handleList op v v'
-        ( _, _, Just (v, v') ) -> handleList op v v'
-        ( _, _, _ ) -> B False
-    listValues' = case (combineMaybes (ecD ec1) (ecDs ec2), combineMaybes (ecI ec1) (ecIs ec2), combineMaybes (ecS ec1) (ecSs ec2)) of
-        ( Just (v, v'), _, _ ) -> handleList op v' v
-        ( _, Just (v, v'), _ ) -> handleList op v' v
-        ( _, _, Just (v, v') ) -> handleList op v' v
-        ( _, _, _ ) -> B False
-    singleValues = case (combineMaybes (ecD ec1) (ecD ec2), combineMaybes (ecI ec1) (ecI ec2), combineMaybes (ecS ec1) (ecS ec2)) of
-        ( Just (v, v'), _, _ ) -> handle op v v'
-        ( _, Just (v, v'), _ ) -> handle op v v'
-        ( _, _, Just (v, v') ) -> handle op v v'
-        ( _, _, _ ) -> B False
+    go :: Ord a => (ExpressionContainer -> Expressions a) -> Expr Bool
+    go f = handleExpressions op (f ec1) (f ec2)
 
 handle :: (Eq a, Ord a) => ComparisonOperator -> Expr a -> Expr a -> Expr Bool
 handle Equals = Eq
@@ -166,6 +151,10 @@ handleList :: Ord a => ComparisonOperator -> [Expr a] -> Expr a -> Expr Bool
 handleList _ [] _ = B False
 handleList op xs x = foldl1 Orr $ map (handle op x) xs
 
-combineMaybes :: Maybe a -> Maybe b -> Maybe (a, b)
-combineMaybes (Just v) (Just v') = Just (v, v')
-combineMaybes _ _ = Nothing
+handleExpressions :: Ord a => ComparisonOperator -> Expressions a -> Expressions a -> Expr Bool
+handleExpressions _ NoExpression _ = B False
+handleExpressions _ _ NoExpression = B False
+handleExpressions op (SingleExpression a) (SingleExpression b) = handle op a b
+handleExpressions op (SingleExpression a) (MultipleExpressions as) = handleList op as a
+handleExpressions op (MultipleExpressions as) (SingleExpression a) = handleList op as a
+handleExpressions op (MultipleExpressions as) (MultipleExpressions bs) = foldl1 Orr $ map (handleList op as) bs

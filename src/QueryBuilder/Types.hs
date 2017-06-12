@@ -22,6 +22,7 @@ data Value
     = VString String
     | VInt Int
     | VDouble Double
+    | VBool Bool
     deriving (Show, Eq)
 
 data Values
@@ -87,7 +88,18 @@ buildConstraints f [a, b] = f a b
 buildConstraints f (a:b:xs) = buildConstraints f $ f a b : xs
 
 explodeValue :: Value -> [Value]
-explodeValue v@(VString _) = [v]
+explodeValue v@(VString s) = v : additional
+  where
+    additional =
+        case s of
+            "T" -> [VBool True]
+            "F" -> [VBool False]
+            "True" -> [VBool True]
+            "False" -> [VBool False]
+            "true" -> [VBool True]
+            "false" -> [VBool False]
+            _ -> []
+explodeValue v@(VBool b) = [v, VString $ show b]
 explodeValue v@(VInt i) = [v, VString $ show i]
 explodeValue v@(VDouble d) =
     baseList ++ [VString $ displayValue $ head baseList]
@@ -100,6 +112,7 @@ displayValue :: Value -> String
 displayValue (VString s) = s
 displayValue (VInt i) = show i
 displayValue (VDouble d) = show d
+displayValue (VBool b) = show b
 
 applyConstraints :: Eq a => (String -> a -> Maybe Values) -> Constraints -> [a] -> [a]
 applyConstraints _ NoConstraints xs = xs

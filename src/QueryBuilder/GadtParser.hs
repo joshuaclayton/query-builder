@@ -1,6 +1,5 @@
 module QueryBuilder.GadtParser (parseGadtConstraints) where
 
-import qualified Data.Maybe as M
 import qualified Data.Text as T
 import           QueryBuilder.GadtTypes
 import           QueryBuilder.Parser.Internal (parens, quotes, int, double, parseOnly)
@@ -40,7 +39,7 @@ operatorParser = try andOperator <|> orOperator
 constraintNameParser :: String -> Parser String
 constraintNameParser split = someTill (alphaNumChar <|> char '.') (string split)
 
-constraintValuesParser :: Parser ExprContainer
+constraintValuesParser :: Parser ExpressionContainer
 constraintValuesParser = try parseLiteralValue <|> parseValues
   where
     parseValues = explodeValueToContainer . explodeValue <$> choice [remainingDouble, remainingInt, remainingText]
@@ -55,13 +54,15 @@ quotedStringParser = quotes remainingText
     remainingText = some notQuote
     notQuote = noneOf ("\"" :: String)
 
-explodeValueToContainer :: [Value] -> ExprContainer
+explodeValueToContainer :: [Value] -> ExpressionContainer
 explodeValueToContainer xs =
-    foldl1 mappend $ M.catMaybes $ concat [map toS xs, map toI xs, map toD xs]
+    foldl1 mappend $ concat [map toS xs, map toI xs, map toD xs, map toB xs]
   where
-    toS (VString v) = Just $ stringExpr v
-    toS _ = Nothing
-    toI (VInt v) = Just $ intExpr v
-    toI _ = Nothing
-    toD (VDouble v) = Just $ doubleExpr v
-    toD _ = Nothing
+    toS (VString v) = stringExpr v
+    toS _ = mempty
+    toI (VInt v) = intExpr v
+    toI _ = mempty
+    toD (VDouble v) = doubleExpr v
+    toD _ = mempty
+    toB (VBool v) = boolExpr v
+    toB _ = mempty
