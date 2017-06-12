@@ -1,6 +1,5 @@
 module QueryBuilder.Demo where
 
-import QueryBuilder.GadtTypes
 import QueryBuilder.Types
 
 newtype PersonId = PersonId { fromPersonId :: Int } deriving (Eq, Show)
@@ -17,12 +16,6 @@ data Person = Person
     , pName :: String
     , pHobbies :: [Hobby]
     } deriving (Eq, Show)
-
-instance ToValue PersonId where
-    toValue (PersonId i) = VInt i
-
-instance ToValue HobbyId where
-    toValue (HobbyId i) = VInt i
 
 running, biking, fishing, rowing, climbing :: Hobby
 running = Hobby (HobbyId 1) "Running" True

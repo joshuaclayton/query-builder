@@ -17,11 +17,9 @@ library
   hs-source-dirs:      src
   exposed-modules:     QueryBuilder
   other-modules:       QueryBuilder.Parser.Internal
-                     , QueryBuilder.Parser
-                     , QueryBuilder.Types
                      , QueryBuilder.Demo
-                     , QueryBuilder.GadtTypes
-                     , QueryBuilder.GadtParser
+                     , QueryBuilder.Types
+                     , QueryBuilder.Parser
   build-depends:       base >= 4.7 && < 5
                      , megaparsec >= 5 && < 6
                      , text

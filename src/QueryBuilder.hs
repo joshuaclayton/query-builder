@@ -1,10 +1,24 @@
 module QueryBuilder
     ( module X
+    , QueryResult(..)
+    , QueryBuilderError(..)
+    , search
     ) where
 
-import QueryBuilder.Parser as X
+import qualified Data.Bifunctor as BF
+import           QueryBuilder.Parser as X
+import           QueryBuilder.Types (ExpressionContainer, applyConstraints)
+import           Text.Megaparsec (ParseError, Dec)
 
--- mapQueries :: String -> Model -> Bool -- Getter model value
--- mapQueries "foo.bar" = foo .* bar == 1
--- go :: Constraints -> String -> ?
--- go cs "foo.bar" = 
+data QueryBuilderError
+    = ParserError (ParseError Char Dec)
+    | UnmatchedQueryError
+    deriving Show
+
+data QueryResult a = QueryResult
+    { qrResults :: [a]
+    }
+
+search :: Eq a => [a] -> (String -> a -> Maybe ExpressionContainer) -> String -> Either QueryBuilderError (QueryResult a)
+search xs f =
+    BF.bimap ParserError (QueryResult . flip (applyConstraints f) xs) . parseConstraints'
