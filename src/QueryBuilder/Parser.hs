@@ -1,8 +1,8 @@
 module QueryBuilder.Parser (parseConstraints, parseConstraints') where
 
 import qualified Data.Text as T
+import           QueryBuilder.ExpressionContainer
 import           QueryBuilder.Parser.Internal (parens, quotes, int, double, parseOnly)
-import           QueryBuilder.Types
 import           Text.Megaparsec
 import           Text.Megaparsec.Text
 
@@ -27,7 +27,7 @@ constraintsParser = do
 buildConstraint :: String -> ComparisonOperator -> Parser Constraint
 buildConstraint operatorString operator = Constraint
     <$> constraintNameParser operatorString
-    <*> constraintValuesParser
+    <*> constraintValuesParser operator
     <*> pure operator
 
 operatorParser :: Parser (Constraints -> Constraints -> Constraints)
@@ -41,10 +41,10 @@ operatorParser = try andOperator <|> orOperator
 constraintNameParser :: String -> Parser String
 constraintNameParser split = someTill (alphaNumChar <|> char '.') (string split)
 
-constraintValuesParser :: Parser ExpressionContainer
-constraintValuesParser = try parseLiteralValue <|> parseValues
+constraintValuesParser :: ComparisonOperator -> Parser ExpressionContainer
+constraintValuesParser operator = try parseLiteralValue <|> parseValues
   where
-    parseValues = explodeValueToContainer . explodeValue <$> choice [remainingDouble, remainingInt, remainingText]
+    parseValues = explodeValueToContainer . stripInvalidValues operator . explodeValue <$> choice [remainingDouble, remainingInt, remainingText]
     parseLiteralValue = explodeValueToContainer . explodeValue . VString <$> quotedStringParser
     remainingDouble = VDouble <$> double
     remainingInt = VInt <$> int
@@ -96,8 +96,29 @@ explodeValue v@(VDouble d) =
     includedInt =
         [VInt $ round d | recip (fromInteger $ round d) == recip d]
 
+stripInvalidValues :: ComparisonOperator -> [Value] -> [Value]
+stripInvalidValues GreaterThan = removeNonNumericValues
+stripInvalidValues GreaterThanOrEqual = removeNonNumericValues
+stripInvalidValues LessThan = removeNonNumericValues
+stripInvalidValues LessThanOrEqual = removeNonNumericValues
+stripInvalidValues Equals = id
+
+removeNonNumericValues :: [Value] -> [Value]
+removeNonNumericValues = filter isNumericValue
+  where
+    isNumericValue (VBool _) = False
+    isNumericValue (VString _) = False
+    isNumericValue (VInt _) = True
+    isNumericValue (VDouble _) = True
+
 displayValue :: Value -> String
 displayValue (VString s) = s
 displayValue (VInt i) = show i
 displayValue (VDouble d) = show d
 displayValue (VBool b) = show b
+
+buildConstraints :: (Constraints -> Constraints -> Constraints) -> [Constraints] -> Constraints
+buildConstraints _ [] = NoConstraints
+buildConstraints _ [a] = a
+buildConstraints f [a, b] = f a b
+buildConstraints f (a:b:xs) = buildConstraints f $ f a b : xs

@@ -1,6 +1,6 @@
 module QueryBuilder.Demo where
 
-import QueryBuilder.Types
+import QueryBuilder.ExpressionContainer
 
 newtype PersonId = PersonId { fromPersonId :: Int } deriving (Eq, Show)
 newtype HobbyId = HobbyId { fromHobbyId :: Int } deriving (Eq, Show)

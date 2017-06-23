@@ -16,10 +16,11 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     QueryBuilder
+                     , QueryBuilder.ExpressionContainer
+                     , QueryBuilder.Parser
+                     , QueryBuilder.Types
   other-modules:       QueryBuilder.Parser.Internal
                      , QueryBuilder.Demo
-                     , QueryBuilder.Types
-                     , QueryBuilder.Parser
   build-depends:       base >= 4.7 && < 5
                      , megaparsec >= 5 && < 6
                      , text
@@ -43,6 +44,7 @@ test-suite query-builder-test
   main-is:             Spec.hs
   build-depends:       base
                      , query-builder
+                     , hspec
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 
